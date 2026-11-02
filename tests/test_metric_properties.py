@@ -1,4 +1,4 @@
-"""Tests basic requirements for the interpretability metric 
+"""Tests basic requirements for the interpretability metric
 on synthetic data and synthetic trees
 """
 
@@ -7,26 +7,17 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 from sklearn.datasets import make_classification
-from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier, export_text
+from sklearn.tree import DecisionTreeClassifier
 
-from iml_interpretability import Dataset, InterpretabilityMetric, RelativeNumberOfLeaves, evaluate, get_models
-from iml_interpretability.metric import MyCustomMetric
-from iml_interpretability.tree import Node, from_sklearn
+from iml_interpretability import Dataset
+from iml_interpretability.metric import StructuralInterpretability
+from iml_interpretability.tree import Node, depth, from_sklearn, n_leaves
 
 
 @pytest.fixture
 def dataset() -> Dataset:
     X, y = make_classification(n_samples=300, n_features=5, random_state=0)
     return Dataset(name="synthetic", X=pd.DataFrame(X).add_prefix("x"), y=pd.Series(y))
-
-
-def _n_leaves(node: Node) -> int:
-    return 1 if node.is_leaf else _n_leaves(node.left) + _n_leaves(node.right)
-
-
-def _depth(node: Node) -> int:
-    return 0 if node.is_leaf else 1 + max(_depth(node.left), _depth(node.right))
 
 
 def _split_features_preorder(node: Node) -> list[int]:
@@ -53,14 +44,13 @@ def test_from_sklearn_matches_fitted_tree(dataset, max_depth):
     # print(f"--- max_depth={max_depth}: Node ---")
     # print(node)
 
-    assert _n_leaves(node) == model.get_n_leaves()
-    assert _depth(node) == model.get_depth()
+    assert n_leaves(node) == model.get_n_leaves()
+    assert depth(node) == model.get_depth()
     assert _split_features_preorder(node) == [int(f) for f in model.tree_.feature if f >= 0]
 
 
-
 def test_same_score_for_invariant_sklearn_trees(dataset):
-    metric = MyCustomMetric()
+    metric = StructuralInterpretability()
 
     # Renaming columns: same data under new names grows the same tree, so the score must not change.
     renamed = Dataset(name=dataset.name, X=dataset.X.add_prefix("renamed_"), y=dataset.y)
@@ -73,7 +63,7 @@ def test_same_score_for_invariant_sklearn_trees(dataset):
 
 
 def test_same_score_for_invariant_node_trees():
-    metric = MyCustomMetric()
+    metric = StructuralInterpretability()
     # Relabelling feature by hand (0 -> 3, 1 -> 4)
     leaf = Node()
     tree = Node(0, Node(1, leaf, leaf), Node(0, leaf, leaf))
@@ -82,7 +72,7 @@ def test_same_score_for_invariant_node_trees():
 
 
 def test_score_mirrored_node_trees():
-    metric = MyCustomMetric()
+    metric = StructuralInterpretability()
     # Swapping left and right children at every node: which branch is "left" must not matter.
     leaf = Node()
     original = Node(0, Node(1, leaf, Node(2, leaf, leaf)), leaf)
@@ -92,14 +82,14 @@ def test_score_mirrored_node_trees():
 
 
 def test_score_near_one_for_stump_sklearn_tree(dataset):
-    metric = MyCustomMetric()
+    metric = StructuralInterpretability()
     # model with depth 1
     model = DecisionTreeClassifier(max_depth=1, random_state=0).fit(dataset.X, dataset.y)
     assert 0.95 < metric.score(model, dataset) <= 1
 
 
 def test_fully_grown_sklearn_tree_scores_lower():
-    metric = MyCustomMetric()
+    metric = StructuralInterpretability()
     X, y = make_classification(n_samples=300, n_features=5, flip_y=0.2, random_state=0)
     noisy_dataset = Dataset(name="noisy", X=pd.DataFrame(X).add_prefix("x"), y=pd.Series(y))
 
@@ -112,18 +102,17 @@ def test_fully_grown_sklearn_tree_scores_lower():
 
 
 def test_complete_node_tree_scores_lower_than_stump():
-    metric = MyCustomMetric()
+    metric = StructuralInterpretability()
     stump = _complete_tree(1)
     complete = _complete_tree(6)  # 64 leaves; RelativeNumberOfLeaves rates this 1.0, the same as the stump
     assert metric.score_tree(complete) < metric.score_tree(stump)
 
 
-
 def test_imbalanced_node_tree_scores_higher_than_complete_tree_of_same_depth():
-    metric = MyCustomMetric()
+    metric = StructuralInterpretability()
     leaf = Node()
     # Both have depth 3 and use features 0, 1, 2, but the chain needs 3 decisions instead of 7.
     balanced = _complete_tree(3)
     imbalaned = Node(0, leaf, Node(1, leaf, Node(2, leaf, leaf)))
-    assert _depth(imbalaned) == _depth(balanced)
+    assert depth(imbalaned) == depth(balanced)
     assert metric.score_tree(imbalaned) > metric.score_tree(balanced)

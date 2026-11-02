@@ -10,11 +10,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+import numpy as np
 from sklearn.base import ClassifierMixin
 from sklearn.tree import DecisionTreeClassifier
 
 from iml_interpretability.data import Dataset
-from iml_interpretability.tree import Node, from_sklearn
+from iml_interpretability.tree import Node, depth, feature_reuse, from_sklearn, max_features_on_path, n_leaves
 
 
 class InterpretabilityMetric(ABC):
@@ -51,16 +52,57 @@ class RelativeNumberOfLeaves(InterpretabilityMetric):
         return model.get_n_leaves() / 2 ** model.get_depth()
 
 
-class MyCustomMetric(InterpretabilityMetric):
-    name = "my_custom_metric"
+class StructuralInterpretability(InterpretabilityMetric):
+    """
+    The weights are not tuned or anything, currently we just have some ideas combined to
+    a score with is offset by a decision boundary and put through a sigmoid.
 
-    def score(self, model, dataset):
+    threshold: so that we can have a level of complexity that marks the point, where sigmoid returns .5
+        (could also be removed and complexity could be recentered around zero, but that would mean that negative
+        complexity exists which is questionable)
+
+    sigmoid: so we get a probability of being interpretable (class 1) or not (class 0).
+        We currently use .5 as decision threshold (higher means more interpretable)!
+
+    weights: one weight per entry of :meth:`features`, matched by name. Pass ``weights`` and/or ``threshold``
+        to the constructor to override the defaults below.
+    """
+
+    name = "structural_interpretability"
+
+    DEFAULT_WEIGHTS: dict[str, float] = {
+        "depth": .5,
+        "log2_feature_reuse": 0.2,
+        "max_features_on_path": .5,
+        "log2_n_leaves": .8,
+    }
+
+    DEFAULT_THRESHOLD: float = 6.0  # TODO more or less untuned!
+
+    def __init__(self, weights: dict[str, float] | None = None, threshold: float | None = None):
+        self.weights = dict(self.DEFAULT_WEIGHTS if weights is None else weights)
+        self.threshold = self.DEFAULT_THRESHOLD if threshold is None else threshold
+
+    def _features(self, root: Node) -> dict[str, float]:
+        """Scaled structural features of the tree, keyed like :attr:`weights`."""
+        return {
+            "depth": float(depth(root)),
+            "log2_feature_reuse": float(np.log2(1 + feature_reuse(root))),
+            "max_features_on_path": float(max_features_on_path(root)),
+            "log2_n_leaves": float(np.log2(n_leaves(root))),
+        }
+
+    def _complexity(self, root: Node) -> float:
+        """Weighted sum of :meth:`features`; 0 for a single leaf, unbounded above."""
+        features = self._features(root)
+        if features.keys() != self.weights.keys():
+            raise ValueError(f"weights {sorted(self.weights)} do not match features {sorted(features)}")
+        return float(sum(self.weights[name] * value for name, value in features.items()))
+
+    def score(self, model: ClassifierMixin, dataset: Dataset):
         if not isinstance(model, DecisionTreeClassifier):
             raise TypeError(f"{type(self).__name__} only supports DecisionTreeClassifier, got {type(model).__name__}")
+        return self.score_tree(from_sklearn(model))
 
-        root = from_sklearn(model)
-
-        return self.score_tree(root)
-
-    def score_tree(self, root:Node):
-        return root.feature if root else 0
+    def score_tree(self, root: Node) -> float:
+        return float(1 / (1 + np.exp(-(self.threshold - self._complexity(root)))))

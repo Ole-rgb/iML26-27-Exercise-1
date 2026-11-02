@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from sklearn.tree import BaseDecisionTree
 
 
-
 @dataclass(frozen=True)
 class Node:
     feature: int | None = None
@@ -45,3 +44,34 @@ def from_sklearn(model: BaseDecisionTree) -> Node:
         )
 
     return build(0)
+
+
+def n_leaves(node: Node) -> int:
+    return 1 if node.is_leaf else n_leaves(node.left) + n_leaves(node.right)
+
+
+def depth(node: Node) -> int:
+    return 0 if node.is_leaf else 1 + max(depth(node.left), depth(node.right))
+
+
+def max_features_on_path(node: Node, seen: frozenset[int] = frozenset()) -> int:
+    """Largest number of distinct features tested on a single root-to-leaf path.
+
+    :param seen: Features already tested above ``node``; leave empty when calling on the root.
+    """
+    if node.is_leaf:
+        return len(seen)
+    seen = seen | {node.feature}
+    return max(max_features_on_path(node.left, seen), max_features_on_path(node.right, seen))
+
+
+def feature_reuse(node: Node, seen: frozenset[int] = frozenset()) -> int:
+    """Number of splits on a feature that an ancestor of the split already tested.
+
+    :param seen: Features already tested above ``node``; leave empty when calling on the root.
+    """
+    if node.is_leaf:
+        return 0
+    reused = int(node.feature in seen)
+    seen = seen | {node.feature}
+    return reused + feature_reuse(node.left, seen) + feature_reuse(node.right, seen)

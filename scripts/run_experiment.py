@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from iml_interpretability import RelativeNumberOfLeaves, evaluate, get_models, load_titanic
+from iml_interpretability import RelativeNumberOfLeaves, StructuralInterpretability, evaluate, get_models, load_titanic
 
 OUTPUT = Path("results/scores.csv")
 SEED = 0
@@ -19,13 +19,13 @@ def main() -> None:
     results = evaluate(
         datasets=[load_titanic()],
         models=get_models(seed=SEED),
-        metrics=[RelativeNumberOfLeaves()],
+        metrics=[RelativeNumberOfLeaves(), StructuralInterpretability()],
         seed=SEED,
     )
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     results.to_csv(OUTPUT, index=False)
-    print(results.to_string(index=False))
+    print(results.round(5).to_string(index=False))
 
 
 if __name__ == "__main__":

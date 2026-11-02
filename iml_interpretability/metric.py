@@ -14,6 +14,7 @@ from sklearn.base import ClassifierMixin
 from sklearn.tree import DecisionTreeClassifier
 
 from iml_interpretability.data import Dataset
+from iml_interpretability.tree import Node, from_sklearn
 
 
 class InterpretabilityMetric(ABC):
@@ -48,3 +49,18 @@ class RelativeNumberOfLeaves(InterpretabilityMetric):
         if not isinstance(model, DecisionTreeClassifier):
             raise TypeError(f"{type(self).__name__} only supports DecisionTreeClassifier, got {type(model).__name__}")
         return model.get_n_leaves() / 2 ** model.get_depth()
+
+
+class MyCustomMetric(InterpretabilityMetric):
+    name = "my_custom_metric"
+
+    def score(self, model, dataset):
+        if not isinstance(model, DecisionTreeClassifier):
+            raise TypeError(f"{type(self).__name__} only supports DecisionTreeClassifier, got {type(model).__name__}")
+
+        root = from_sklearn(model)
+
+        return self.score_tree(root)
+
+    def score_tree(self, root:Node):
+        return root.feature if root else 0

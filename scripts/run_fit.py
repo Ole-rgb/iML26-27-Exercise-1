@@ -7,6 +7,7 @@ Usage::
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -16,7 +17,6 @@ from sklearn.metrics import accuracy_score, f1_score
 from sklearn.model_selection import RepeatedStratifiedKFold, StratifiedKFold
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
-import json
 
 LABELING_DIR = Path("labeling")
 SEED = 0
@@ -30,6 +30,7 @@ FEATURES = [
     "log2_n_trees",
     "log2_effective_n_trees",
 ]
+
 
 def load_labeled_items(labeling_dir: Path = LABELING_DIR) -> pd.DataFrame:
     items = pd.read_csv(labeling_dir / "items.csv")
@@ -50,6 +51,7 @@ def make_model():
         StandardScaler(),
         LogisticRegressionCV(Cs=20, cv=inner, scoring="neg_log_loss", max_iter=10_000),
     )
+
 
 def get_weights(model) -> tuple[float, np.ndarray]:
     scaler, regression = model[0], model[-1]
@@ -95,7 +97,7 @@ for name, value in fitted.items():
     print(f"{name:24s} {value:.3f}")
 
 # Save weights
-fitted = {name: round(float(value), 2) for name, value in zip(FEATURES, w)}
+fitted = {name: round(float(value), 2) for name, value in zip(FEATURES, w, strict=False)}
 fitted["threshold"] = round(threshold, 2)
 (LABELING_DIR / "fitted_weights.json").write_text(json.dumps(fitted, indent=2) + "\n")
 print(json.dumps(fitted, indent=2))

@@ -18,6 +18,7 @@ from iml_interpretability.data import Dataset
 from iml_interpretability.tree import (
     Node,
     depth,
+    effective_n_trees,
     essential_split_share,
     feature_reuse,
     max_features_on_path,
@@ -84,12 +85,13 @@ class StructuralInterpretability(InterpretabilityMetric):
         "log2_feature_reuse": 0.2,
         "max_features_on_path": 0.5,
         "log2_n_leaves": 0.8,
-        "essential_split_share": 1.0, 
+        "essential_split_share": 1.0, # 1 = every split matters; lower = some splits could be removed without changing a prediction
+
     }
 
     DEFAULT_ENSEMBLE_WEIGHTS: dict[str, float] = {
-        "log2_n_trees": 1,
-        # "inter_tree_agreement": 0 # something like this?
+        "log2_n_trees": 1.0,
+        "log2_effective_n_trees": 1.0, # 0 for a single tree or identical trees, log2(n) for trees that share no split
     }
 
     def __init__(
@@ -109,7 +111,7 @@ class StructuralInterpretability(InterpretabilityMetric):
             "log2_feature_reuse": float(np.log2(1 + feature_reuse(root))),
             "max_features_on_path": float(max_features_on_path(root)),
             "log2_n_leaves": float(np.log2(n_leaves(root))),
-            "essential_split_share": essential_split_share(root), # 1 = every split matters; lower = some splits could be removed without changing a prediction
+            "essential_split_share": essential_split_share(root),
         }
 
     def _tree_complexity(self, root: Node) -> float:
@@ -123,6 +125,7 @@ class StructuralInterpretability(InterpretabilityMetric):
     def _ensemble_features(self, ensemble: list[Node]) -> dict[str, float]:
         return {
             "log2_n_trees": float(np.log2(len(ensemble))),
+            "log2_effective_n_trees": float(np.log2(effective_n_trees(ensemble))),
         }
 
     def _ensemble_complexity(self, ensemble: list[Node]) -> float:

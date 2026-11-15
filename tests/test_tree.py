@@ -57,6 +57,7 @@ def test_feature_reuse(node, expected):
 
 HEALTHY, SICK = Node(prediction=0), Node(prediction=1)
 
+
 def test_simplify_merges_split_with_same_prediction():
     assert tree.simplify(Node(0, HEALTHY, HEALTHY)) == HEALTHY
 
@@ -124,3 +125,44 @@ def test_trees_of_returns_trees_as_fitted():
 )
 def test_essential_split_share(node, expected):
     assert tree.essential_split_share(node) == pytest.approx(expected)
+
+
+def _small(features: list[int]) -> Node:
+    """Depth-2 tree: root features[0], children features[1] and features[2], all leaves unknown."""
+    return Node(features[0], Node(features[1], LEAF, LEAF), Node(features[2], LEAF, LEAF))
+
+
+# The three depth-3 trees from the worked example: 10 distinct splits, (7 + 7 + 5) / 3 splits per tree.
+TREE_A = Node(1, Node(2, Node(4, LEAF, LEAF), Node(5, LEAF, LEAF)), Node(3, Node(6, LEAF, LEAF), Node(7, LEAF, LEAF)))
+TREE_B = Node(1, Node(2, Node(4, LEAF, LEAF), Node(8, LEAF, LEAF)), Node(3, Node(6, LEAF, LEAF), Node(9, LEAF, LEAF)))
+TREE_C = Node(1, Node(2, Node(4, LEAF, LEAF), Node(5, LEAF, LEAF)), Node(10, LEAF, LEAF))
+
+
+def test_split_signatures_use_position_and_feature():
+    assert tree.split_signatures(CHAIN) == {("", 0), ("R", 1), ("RR", 2)}
+    assert tree.split_signatures(LEAF) == set()
+
+
+@pytest.mark.parametrize(
+    ("trees", "expected"),
+    [
+        pytest.param([TREE_A], 1.0, id="single_tree"),
+        pytest.param([TREE_A, TREE_A, TREE_A], 1.0, id="identical"),
+        pytest.param([_small([0, 1, 2]), _small([3, 4, 5])], 2.0, id="nothing_shared"),
+        pytest.param([_small([0, 1, 2]), _small([1, 0, 2])], 5 / 3, id="same_features_other_positions"),
+        pytest.param([TREE_A, TREE_B, TREE_C], 10 / (19 / 3), id="worked_example"),
+        pytest.param([LEAF, LEAF], 1.0, id="only_leaves"),
+    ],
+)
+def test_effective_n_trees(trees, expected):
+    assert tree.effective_n_trees(trees) == pytest.approx(expected)
+
+
+def test_effective_n_trees_lies_between_one_and_n_for_sklearn_ensembles():
+    from sklearn.datasets import make_classification
+    from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+
+    X, y = make_classification(n_samples=300, n_features=6, random_state=0)
+    for model in [RandomForestClassifier(n_estimators=10, max_depth=3), GradientBoostingClassifier(n_estimators=10)]:
+        trees = tree.trees_of(model.set_params(random_state=0).fit(X, y))
+        assert 1.0 <= tree.effective_n_trees(trees) <= len(trees)

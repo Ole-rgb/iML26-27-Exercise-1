@@ -137,3 +137,27 @@ def feature_reuse(node: Node, seen: frozenset[int] = frozenset()) -> int:
     reused = int(node.feature in seen)
     seen = seen | {node.feature}
     return reused + feature_reuse(node.left, seen) + feature_reuse(node.right, seen)
+
+
+def split_signatures(node: Node, path: str = "") -> set[tuple[str, int]]:
+    """Every split of a tree as (position, feature); thresholds are ignored.
+
+    The position is the path from the root, e.g. ``""`` for the root and ``"LR"`` for the right child of the root's
+    left child, so the same feature tested at the same place in two trees gives the same signature.
+    """
+    if node.is_leaf:
+        return set()
+    return {(path, node.feature)} | split_signatures(node.left, path + "L") | split_signatures(node.right, path + "R")
+
+
+def effective_n_trees(trees: list[Node]) -> float:
+    """How many different trees an ensemble is worth: distinct split signatures / average splits per tree.
+
+    1 for a single tree or identical trees, ``len(trees)`` for trees that share no split, in between otherwise.
+    Only-leaf ensembles count as 1.
+    """
+    per_tree = [split_signatures(tree) for tree in trees]
+    mean_splits = float(np.mean([len(signatures) for signatures in per_tree]))
+    if mean_splits == 0:
+        return 1.0
+    return len(set().union(*per_tree)) / mean_splits

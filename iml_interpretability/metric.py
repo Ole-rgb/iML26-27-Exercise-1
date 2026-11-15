@@ -79,20 +79,19 @@ class StructuralInterpretability(InterpretabilityMetric):
 
     name = "structural_interpretability"
 
-    DEFAULT_THRESHOLD: float = 6.0  # TODO more or less untuned!
+    # fitted on 100 hand labels, see labeling/fit_metric.py
     DEFAULT_TREE_WEIGHTS: dict[str, float] = {
-        "depth": 0.5,
-        "log2_feature_reuse": 0.2,
-        "max_features_on_path": 0.5,
-        "log2_n_leaves": 0.8,
-        "essential_split_share": 1.0, # 1 = every split matters; lower = some splits could be removed without changing a prediction
-
+        "depth": 0.31,
+        "log2_n_leaves": 1.35,
+        "log2_feature_reuse": 0.6,
+        "max_features_on_path": 0.36,
+        "essential_split_share": 3.84,
     }
-
     DEFAULT_ENSEMBLE_WEIGHTS: dict[str, float] = {
-        "log2_n_trees": 1.0,
-        "log2_effective_n_trees": 1.0, # 0 for a single tree or identical trees, log2(n) for trees that share no split
+        "log2_n_trees": 0.97,
+        "log2_effective_n_trees": 1.35,
     }
+    DEFAULT_THRESHOLD: float = 11.13
 
     def __init__(
         self,

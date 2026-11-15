@@ -11,11 +11,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 import numpy as np
-from sklearn.base import ClassifierMixin
+from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.tree import DecisionTreeClassifier
 
 from iml_interpretability.data import Dataset
-from iml_interpretability.tree import Node, depth, feature_reuse, from_sklearn, max_features_on_path, n_leaves
+from iml_interpretability.tree import Node, depth, feature_reuse, max_features_on_path, n_leaves, trees_of
 
 
 class InterpretabilityMetric(ABC):
@@ -70,20 +70,30 @@ class StructuralInterpretability(InterpretabilityMetric):
 
     name = "structural_interpretability"
 
-    DEFAULT_WEIGHTS: dict[str, float] = {
-        "depth": .5,
+    DEFAULT_THRESHOLD: float = 6.0  # TODO more or less untuned!
+    DEFAULT_TREE_WEIGHTS: dict[str, float] = {
+        "depth": 0.5,
         "log2_feature_reuse": 0.2,
-        "max_features_on_path": .5,
-        "log2_n_leaves": .8,
+        "max_features_on_path": 0.5,
+        "log2_n_leaves": 0.8,
     }
 
-    DEFAULT_THRESHOLD: float = 6.0  # TODO more or less untuned!
+    DEFAULT_ENSEMBLE_WEIGHTS: dict[str, float] = {
+        "log2_n_trees": 1,
+        # "inter_tree_agreement": 0 # something like this?
+    }
 
-    def __init__(self, weights: dict[str, float] | None = None, threshold: float | None = None):
-        self.weights = dict(self.DEFAULT_WEIGHTS if weights is None else weights)
+    def __init__(
+        self,
+        tree_weights: dict[str, float] | None = None,
+        ensemble_weights: dict[str, float] | None = None,
+        threshold: float | None = None,
+    ):
+        self.tree_weights = dict(self.DEFAULT_TREE_WEIGHTS if tree_weights is None else tree_weights)
+        self.ensemble_weights = dict(self.DEFAULT_ENSEMBLE_WEIGHTS if ensemble_weights is None else ensemble_weights)
         self.threshold = self.DEFAULT_THRESHOLD if threshold is None else threshold
 
-    def _features(self, root: Node) -> dict[str, float]:
+    def _tree_features(self, root: Node) -> dict[str, float]:
         """Scaled structural features of the tree, keyed like :attr:`weights`."""
         return {
             "depth": float(depth(root)),
@@ -92,17 +102,30 @@ class StructuralInterpretability(InterpretabilityMetric):
             "log2_n_leaves": float(np.log2(n_leaves(root))),
         }
 
-    def _complexity(self, root: Node) -> float:
+    def _tree_complexity(self, root: Node) -> float:
         """Weighted sum of :meth:`features`; 0 for a single leaf, unbounded above."""
-        features = self._features(root)
-        if features.keys() != self.weights.keys():
-            raise ValueError(f"weights {sorted(self.weights)} do not match features {sorted(features)}")
-        return float(sum(self.weights[name] * value for name, value in features.items()))
+        features = self._tree_features(root)
 
-    def score(self, model: ClassifierMixin, dataset: Dataset):
-        if not isinstance(model, DecisionTreeClassifier):
-            raise TypeError(f"{type(self).__name__} only supports DecisionTreeClassifier, got {type(model).__name__}")
-        return self.score_tree(from_sklearn(model))
+        if features.keys() != self.tree_weights.keys():
+            raise ValueError(f"weights {sorted(self.tree_weights)} do not match features {sorted(features)}")
+        return float(sum(self.tree_weights[name] * value for name, value in features.items()))
 
-    def score_tree(self, root: Node) -> float:
-        return float(1 / (1 + np.exp(-(self.threshold - self._complexity(root)))))
+    def _ensemble_features(self, ensemble: list[Node]) -> dict[str, float]:
+        return {
+            "log2_n_trees": float(np.log2(len(ensemble))),
+        }
+
+    def _ensemble_complexity(self, ensemble: list[Node]) -> float:
+        # log2(1) = 0 for a single tree
+        features = self._ensemble_features(ensemble)
+        if features.keys() != self.ensemble_weights.keys():
+            raise ValueError(f"weights {sorted(self.ensemble_weights)} do not match features {sorted(features)}")
+        return float(sum(self.ensemble_weights[name] * value for name, value in features.items()))
+
+    def score(self, model: BaseEstimator, dataset: Dataset):
+        """Interpretability score in (0, 1); higher = more interpretable, 0.5 = threshold of interpretability."""
+        trees = trees_of(model)
+        mean_tc = np.mean([self._tree_complexity(tree) for tree in trees])
+        ec = self._ensemble_complexity(trees)
+        score = self.threshold - (mean_tc + ec)
+        return float(1 / (1 + np.exp(-score)))  # sigmoid

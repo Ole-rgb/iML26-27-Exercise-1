@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
+from sklearn.base import BaseEstimator
+from sklearn.ensemble import BaseEnsemble
 from sklearn.tree import BaseDecisionTree
 
 
@@ -44,6 +47,16 @@ def from_sklearn(model: BaseDecisionTree) -> Node:
         )
 
     return build(0)
+
+
+def trees_of(model: BaseEstimator) -> list[Node]:
+    if isinstance(model, BaseDecisionTree):
+        trees = [model]
+    elif isinstance(model, BaseEnsemble):
+        trees = np.asarray(list(model), dtype=object).ravel()  # need to ravel becuase of GradBoost 2D structure
+    else:
+        raise TypeError(f"Only supports tree models, got {type(model).__name__}")
+    return [from_sklearn(tree) for tree in trees]
 
 
 def n_leaves(node: Node) -> int:

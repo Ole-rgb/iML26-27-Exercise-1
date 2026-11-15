@@ -68,7 +68,7 @@ def test_same_score_for_invariant_node_trees():
     leaf = Node()
     tree = Node(0, Node(1, leaf, leaf), Node(0, leaf, leaf))
     relabelled = Node(3, Node(4, leaf, leaf), Node(3, leaf, leaf))
-    assert metric.score_tree(tree) == metric.score_tree(relabelled)
+    assert metric._tree_complexity(tree) == metric._tree_complexity(relabelled)
 
 
 def test_score_mirrored_node_trees():
@@ -78,7 +78,7 @@ def test_score_mirrored_node_trees():
     original = Node(0, Node(1, leaf, Node(2, leaf, leaf)), leaf)
     mirrored = Node(0, leaf, Node(1, Node(2, leaf, leaf), leaf))
     assert original != mirrored
-    assert metric.score_tree(original) == metric.score_tree(mirrored)
+    assert metric._tree_complexity(original) == metric._tree_complexity(mirrored)
 
 
 def test_score_near_one_for_stump_sklearn_tree(dataset):
@@ -105,7 +105,7 @@ def test_complete_node_tree_scores_lower_than_stump():
     metric = StructuralInterpretability()
     stump = _complete_tree(1)
     complete = _complete_tree(6)  # 64 leaves; RelativeNumberOfLeaves rates this 1.0, the same as the stump
-    assert metric.score_tree(complete) < metric.score_tree(stump)
+    assert metric._tree_complexity(complete) > metric._tree_complexity(stump)
 
 
 def test_imbalanced_node_tree_scores_higher_than_complete_tree_of_same_depth():
@@ -115,4 +115,4 @@ def test_imbalanced_node_tree_scores_higher_than_complete_tree_of_same_depth():
     balanced = _complete_tree(3)
     imbalaned = Node(0, leaf, Node(1, leaf, Node(2, leaf, leaf)))
     assert depth(imbalaned) == depth(balanced)
-    assert metric.score_tree(imbalaned) > metric.score_tree(balanced)
+    assert metric._tree_complexity(imbalaned) < metric._tree_complexity(balanced)

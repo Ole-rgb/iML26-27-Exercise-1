@@ -92,7 +92,12 @@ linter and formatter. A configuration is already included in `pyproject.toml`:
 > **Mandatory.** Replace this example with your own: which AI tools you used, for what, and how you
 > checked their output (or that you used none).
 
-*Example:* I created this repository with Claude Code (Claude Opus 5.5). After clarifying the scope
-with it, it generated the code, tests and README based on my own projects as style references. I
-reviewed and edited the result and checked that it runs. I take full responsibility for and
-ownership of the content of this repository.
+*Example:* I used Claude Desktop for:
+- Brainstroming on what features to use and discussed that. 
+- Writing tests (I clarified the scope and let it automatically generate tests (95% of them were super useful)).
+- Building the web-interface for the labeling process. I feel like this is what LLMs are very good at (building simple interfaces very fast).
+  - I didnt verify the code at all, but did "Stichproben" on the output file (that is used as the basis for the training of the LM).
+  - So everything under "labeling" is ai generated.
+  - The idea of AI generating the candidate set as well was, that I am the only grader, so if I would generate the candidates AND grade them, that might introduce a higher bias then splitting the tasks. 
+- Creating and "beatifying" graphs 
+  - for the graphs i didnt double check what the ai did, but i didnt use them for anything. It was just to get an intuition of what the metric does (probably)

@@ -15,7 +15,15 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.tree import DecisionTreeClassifier
 
 from iml_interpretability.data import Dataset
-from iml_interpretability.tree import Node, depth, feature_reuse, max_features_on_path, n_leaves, trees_of
+from iml_interpretability.tree import (
+    Node,
+    depth,
+    essential_split_share,
+    feature_reuse,
+    max_features_on_path,
+    n_leaves,
+    trees_of,
+)
 
 
 class InterpretabilityMetric(ABC):
@@ -76,6 +84,7 @@ class StructuralInterpretability(InterpretabilityMetric):
         "log2_feature_reuse": 0.2,
         "max_features_on_path": 0.5,
         "log2_n_leaves": 0.8,
+        "essential_split_share": 1.0, 
     }
 
     DEFAULT_ENSEMBLE_WEIGHTS: dict[str, float] = {
@@ -100,6 +109,7 @@ class StructuralInterpretability(InterpretabilityMetric):
             "log2_feature_reuse": float(np.log2(1 + feature_reuse(root))),
             "max_features_on_path": float(max_features_on_path(root)),
             "log2_n_leaves": float(np.log2(n_leaves(root))),
+            "essential_split_share": essential_split_share(root), # 1 = every split matters; lower = some splits could be removed without changing a prediction
         }
 
     def _tree_complexity(self, root: Node) -> float:

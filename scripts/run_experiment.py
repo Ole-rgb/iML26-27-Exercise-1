@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from iml_interpretability import RelativeNumberOfLeaves, StructuralInterpretability, evaluate, get_models, load_titanic
+from iml_interpretability import RelativeNumberOfLeaves, StructuralInterpretability, evaluate, get_models, load_titanic, load_diabetes, load_wdbc, load_endgames
 
 OUTPUT = Path("results/scores.csv")
 SEED = 0
@@ -17,7 +17,7 @@ SEED = 0
 
 def main() -> None:
     results = evaluate(
-        datasets=[load_titanic()],
+        datasets=[load_titanic(), load_diabetes(), load_wdbc(), load_endgames()],
         models=get_models(seed=SEED),
         metrics=[RelativeNumberOfLeaves(), StructuralInterpretability()],
         seed=SEED,
